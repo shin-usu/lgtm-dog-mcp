@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:github.com)",
+      "Bash(mkdir:*)",
+      "Bash(docker:*)",
+      "Bash(ls:*)",
+      "Bash(find:*)",
+      "Bash(npm install)",
+      "Bash(brew install:*)",
+      "Bash(npm run build:*)",
+      "Bash(node:*)",
+      "Bash(/Users/usu-shin/.anyenv/envs/nodenv/shims/node:*)",
+      "Bash(chmod:*)"
+    ],
+    "deny": []
+  }
+}
