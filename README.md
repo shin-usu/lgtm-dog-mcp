@@ -30,7 +30,7 @@ Claude Desktopの設定ファイルを編集して、このMCPサーバーを追
   "mcpServers": {
     "lgtm-dog": {
       "command": "node",
-      "args": ["/Users/usu-shin/dev/lgtm-dog-mcp/dist/index.js"]
+      "args": ["/path/to/lgtm-dog-mcp/dist/index.js"]
     }
   }
 }
