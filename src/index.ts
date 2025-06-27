@@ -4,8 +4,7 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
-import { Jimp } from "jimp";
-import { JimpMime } from "jimp";
+import sharp from "sharp";
 import fetch from "node-fetch";
 import fs from "fs/promises";
 import os from "os";
@@ -27,109 +26,44 @@ async function fetchRandomDogImage(): Promise<Buffer> {
 }
 
 async function addLGTMOverlay(imageBuffer: Buffer): Promise<Buffer> {
-  const image = await Jimp.read(imageBuffer);
+  // Get image metadata
+  const metadata = await sharp(imageBuffer).metadata();
+  const imageWidth = metadata.width || 800;
+  const imageHeight = metadata.height || 600;
   
-  // Calculate text positioning (no background box)
-  const imageWidth = image.bitmap.width;
-  const imageHeight = image.bitmap.height;
+  // Calculate text size based on image dimensions
+  const fontSize = Math.floor(Math.min(imageWidth, imageHeight) / 6);
   
-  // Draw "LGTM" text using thinner white font
-  const letters = {
-    L: [
-      [1,0,0,0,0,0],
-      [1,0,0,0,0,0],
-      [1,0,0,0,0,0],
-      [1,0,0,0,0,0],
-      [1,0,0,0,0,0],
-      [1,0,0,0,0,0],
-      [1,0,0,0,0,0],
-      [1,0,0,0,0,0],
-      [1,1,1,1,1,1],
-      [1,1,1,1,1,1]
-    ],
-    G: [
-      [0,1,1,1,1,0],
-      [1,1,1,1,1,1],
-      [1,0,0,0,0,0],
-      [1,0,0,0,0,0],
-      [1,0,0,0,0,0],
-      [1,0,0,1,1,1],
-      [1,0,0,1,1,1],
-      [1,1,1,1,1,1],
-      [1,1,1,1,1,1],
-      [0,1,1,1,1,0]
-    ],
-    T: [
-      [1,1,1,1,1,1],
-      [1,1,1,1,1,1],
-      [0,0,1,1,0,0],
-      [0,0,1,1,0,0],
-      [0,0,1,1,0,0],
-      [0,0,1,1,0,0],
-      [0,0,1,1,0,0],
-      [0,0,1,1,0,0],
-      [0,0,1,1,0,0],
-      [0,0,1,1,0,0]
-    ],
-    M: [
-      [1,0,0,0,0,1],
-      [1,1,0,0,1,1],
-      [1,1,1,1,1,1],
-      [1,0,1,1,0,1],
-      [1,0,0,0,0,1],
-      [1,0,0,0,0,1],
-      [1,0,0,0,0,1],
-      [1,0,0,0,0,1],
-      [1,0,0,0,0,1],
-      [1,0,0,0,0,1]
-    ]
-  };
+  // Create SVG text with white text and black stroke
+  const svg = `
+    <svg width="${imageWidth}" height="${imageHeight}">
+      <text x="50%" y="50%" 
+        dominant-baseline="middle" 
+        text-anchor="middle" 
+        font-family="Arial, sans-serif" 
+        font-size="${fontSize}" 
+        font-weight="normal"
+        fill="white" 
+        stroke="black" 
+        stroke-width="${fontSize / 25}"
+        style="paint-order: stroke fill;">
+        LGTMだワン！
+      </text>
+    </svg>
+  `;
   
-  const letterOrder = ['L', 'G', 'T', 'M'];
-  const letterPixelWidth = 6;
-  const letterPixelHeight = 10;
-  const pixelSize = Math.max(3, Math.floor(Math.min(imageWidth * 0.7 / (letterOrder.length * letterPixelWidth + 9), imageHeight * 0.25 / letterPixelHeight)));
+  // Composite the text overlay onto the image
+  const outputBuffer = await sharp(imageBuffer)
+    .composite([
+      {
+        input: Buffer.from(svg),
+        gravity: 'center'
+      }
+    ])
+    .png()
+    .toBuffer();
   
-  const spacing = pixelSize * 1.5; // Space between letters
-  const totalTextWidth = letterOrder.length * letterPixelWidth * pixelSize + (letterOrder.length - 1) * spacing;
-  const totalTextHeight = letterPixelHeight * pixelSize;
-  
-  // Center the text on the image
-  const startX = (imageWidth - totalTextWidth) / 2;
-  const startY = (imageHeight - totalTextHeight) / 2;
-  
-  letterOrder.forEach((letter, letterIndex) => {
-    const pattern = letters[letter as keyof typeof letters];
-    const letterX = startX + letterIndex * (letterPixelWidth * pixelSize + spacing);
-    
-    pattern.forEach((row, rowIndex) => {
-      row.forEach((pixel, colIndex) => {
-        if (pixel === 1) {
-          // Draw white pixel with black shadow for better visibility
-          for (let px = 0; px < pixelSize; px++) {
-            for (let py = 0; py < pixelSize; py++) {
-              const pixelX = Math.floor(letterX + colIndex * pixelSize + px);
-              const pixelY = Math.floor(startY + rowIndex * pixelSize + py);
-              
-              if (pixelX >= 0 && pixelX < imageWidth && 
-                  pixelY >= 0 && pixelY < imageHeight) {
-                // Add subtle black shadow (offset by 1 pixel)
-                const shadowX = pixelX + 1;
-                const shadowY = pixelY + 1;
-                if (shadowX < imageWidth && shadowY < imageHeight) {
-                  image.setPixelColor(0x000000AA, shadowX, shadowY); // Semi-transparent black shadow
-                }
-                // Draw white text
-                image.setPixelColor(0xFFFFFFFF, pixelX, pixelY); // White text
-              }
-            }
-          }
-        }
-      });
-    });
-  });
-  
-  return await image.getBuffer(JimpMime.png);
+  return outputBuffer;
 }
 
 const server = new Server(
